@@ -39,82 +39,64 @@
   import java.io.IOException;
   import java.util.Arrays;
   import java.util.List;
+  import java.util.logging.Level;
+  import java.util.logging.Logger;
   
   /**
    * 登录验证的过滤器
    */
   @WebFilter("/*")
   public class LoginFilter implements Filter {
-      private static final List<String> EXCLUDED_PATHS = Arrays.asList(
-              "login.jsp", "register.jsp", "public", "style.css", "home.jsp"
-      );
-      private static final String USER_ID_COOKIE_NAME = "userId";
+      private List<String> excludePaths;
+  
+      private static final Logger LOGGER = Logger.getLogger(LoginFilter.class.getName());
   
       @Override
-      public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+      public void init(FilterConfig filterConfig) throws ServletException {
+          // 初始化排除路径
+          excludePaths = Arrays.asList("/login", "/login.jsp", "/public.jsp", "/pictures/*");
+      }
+  
+      @Override
+      public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain)
+              throws IOException, ServletException {
           HttpServletRequest request = (HttpServletRequest) servletRequest;
           HttpServletResponse response = (HttpServletResponse) servletResponse;
   
           String requestURI = request.getRequestURI();
+          LOGGER.log(Level.INFO, "请求 URI: {0}", requestURI);
   
-          // 检查请求路径是否在排除列表
-          if (isExcludedPath(requestURI)) {
-              filterChain.doFilter(request, response);
+          // 检查请求路径是否在排除列表中
+          if (isExcluded(requestURI)) {
+              filterChain.doFilter(servletRequest, servletResponse);
               return;
           }
   
-          HttpSession session = request.getSession(false); // 不创建新session
-          Object user = (session != null) ? session.getAttribute("user") : null;
-  
-          // 如果用户已登录，放行请求
-          if (user != null) {
+          HttpSession session = request.getSession(false);
+          if (session != null && session.getAttribute("user") != null) {
+              // 用户已登录，放行请求
               filterChain.doFilter(servletRequest, servletResponse);
           } else {
-              // 检查cookie中是否有用户ID
-              String userID = getUserIdFromCookie(request);
-              if (userID != null) {
-                  // 登录成功，设置session
-                  session = request.getSession(true);
-                  session.setAttribute("user", userID);
-                  filterChain.doFilter(servletRequest, servletResponse);
-              } else {
-                  // 用户未登录，跳转到登录页面
-                  request.setAttribute("login_msg", "您尚未登录！");
-                  request.getRequestDispatcher("/login.jsp").forward(request, servletResponse);
-              }
+              // 用户未登录，重定向到登录页面
+              LOGGER.log(Level.WARNING, "用户未登录，重定向到登录页面。");
+              response.sendRedirect(response.encodeRedirectURL(request.getContextPath() + "/login.jsp"));
           }
-      }
-  
-      private boolean isExcludedPath(String requestURI) {
-          return EXCLUDED_PATHS.stream().anyMatch(requestURI::endsWith);
-      }
-  
-      private String getUserIdFromCookie(HttpServletRequest request) {
-          // 处理可能为null的cookie数组
-          if (request.getCookies() == null) {
-              return null;
-          }
-          return Arrays.stream(request.getCookies())
-                  .filter(cookie -> USER_ID_COOKIE_NAME.equals(cookie.getName()))
-                  .map(cookie -> cookie.getValue())
-                  .findFirst()
-                  .orElse(null);
-      }
-  
-      @Override
-      public void init(FilterConfig filterConfig) throws ServletException {
-          // 初始化逻辑（如果需要）
       }
   
       @Override
       public void destroy() {
           // 清理资源（如果需要）
       }
+  
+      private boolean isExcluded(String path) {
+          // 检查当前请求路径是否在排除列表中
+          return excludePaths.stream().anyMatch(path::endsWith);
+      }
   }
   ```
-
   
-
+  
+  
 - 创建登录页面
 
   在 `src/main/webapp` 目录下创建 `login.jsp` 页面：
@@ -127,19 +109,121 @@
   <head>
       <meta charset="UTF-8">
       <title>用户登录</title>
-      <link rel="stylesheet" href="style.css">
+      <style>
+          body, html {
+              height: 100%;
+              margin: 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* 更新字体 */
+              background-color: #f0f2f5; /* 添加背景色 */
+          }
+  
+          .login-container {
+              width: 300px;
+              padding: 30px;
+              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+              border-radius: 8px;
+              background: #ffffff; /* 显示白色背景 */
+              transition: transform 0.2s; /* 添加过渡效果 */
+          }
+  
+          .login-container:hover {
+              transform: scale(1.02); /* 鼠标悬停时轻微放大效果 */
+          }
+  
+          .login-container h2 {
+              text-align: center;
+              margin-bottom: 20px;
+              color: #333; /* 更新标题颜色 */
+          }
+  
+          .login-container .error-message {
+              text-align: center;
+              color: red;
+              margin-bottom: 15px;
+          }
+  
+          .login-container form div {
+              margin-bottom: 15px;
+          }
+  
+          .login-container label {
+              display: block;
+              margin-bottom: 5px;
+              color: #555; /* 更新标签颜色 */
+          }
+  
+          .login-container input[type="text"],
+          .login-container input[type="password"] {
+              width: 100%;
+              padding: 10px; /* 增加内边距 */
+              border: 1px solid #ccc;
+              border-radius: 4px;
+              box-sizing: border-box;
+              font-size: 14px; /* 更新字体大小 */
+          }
+  
+          .login-container input[type="checkbox"] {
+              margin-top: 10px; /* 增加复选框顶部外边距 */
+          }
+  
+          .login-container button {
+              width: 100%;
+              padding: 10px;
+              border: none;
+              border-radius: 4px;
+              background-color: #4CAF50; /* 更新按钮颜色 */
+              color: white;
+              cursor: pointer;
+              font-size: 16px; /* 更新按钮字体大小 */
+              transition: background-color 0.3s;
+          }
+  
+          .login-container button:hover {
+              background-color: #45a049; /* 按钮悬停时变色 */
+          }
+  
+          .login-container .footer {
+              text-align: center;
+              margin-top: 20px;
+              font-size: 12px; /* 更新字体大小 */
+              color: #777; /* 更新颜色 */
+          }
+      </style>
   </head>
   <body>
   <div class="login-container">
       <h2>用户登录</h2>
+  
+      <%
+          // 如果有错误消息则显示
+          if (request.getAttribute("errorMessage") != null) {
+      %>
+      <p class="error-message"><%= request.getAttribute("errorMessage") %></p>
+      <%
+          }
+      %>
+  
       <form action="login" method="post">
-          <input type="text" name="username" required>
-          <input type="password" name="password" required>
-          <input type="checkbox" name="rememberMe"> Remember Me
-          <button type="submit">Login</button>
+          <div>
+              <label for="username">用户名:</label>
+              <input type="text" id="username" name="username" required>
+          </div>
+          <div>
+              <label for="password">密码:</label>
+              <input type="password" id="password" name="password" required>
+          </div>
+          <div>
+              <input type="checkbox" name="rememberMe"> 记住我
+          </div>
+          <div>
+              <button type="submit">登录</button>
+          </div>
       </form>
   
-  
+      <div class="footer">© 2024 你的公司名 - 保留所有权利</div>
   </div>
   </body>
   </html>
@@ -152,68 +236,47 @@
   在 `src/main/webapp` 目录下创建 `home.jsp` 页面：
 
   ```java
-  <%@ page contentType="text/html;charset=UTF-8" language="java" %>
+  <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+  <%@ page import="jakarta.servlet.http.HttpSession" %>
   <!DOCTYPE html>
   <html lang="zh">
   <head>
     <meta charset="UTF-8">
-    <title>主页</title>
-    <link rel="stylesheet" href="style.css"> <!-- 链接到CSS文件 -->
+    <title>首页</title>
   </head>
   <body>
   <%
-    String username = (String) session.getAttribute("user"); // 从会话获取用户名
+    // 直接使用内置的 session 对象
+    String username = (String) session.getAttribute("user");
+  
+    // 如果用户未登录，重定向到登录页面
+    if (username == null) {
+      response.sendRedirect("login.jsp");
+      return;
+    }
   %>
-  <h1>欢迎, <%= username != null ? username : "游客" %>!</h1> <!-- 显示用户名，如未登录则显示“游客” -->
-  <a href="logout">退出</a> <!-- 注销链接 -->
+  
+  <h1>欢迎，<%= username %> 用户！</h1>
+  
+  <!-- 登出链接 -->
+  <p>
+    <a href="logout">退出登录</a>
+  </p>
+  
+  <%
+    // 显示注销消息
+    String logoutMessage = request.getParameter("logout");
+    if ("true".equals(logoutMessage)) {
+  %>
+  <p style="color: green;">您已成功注销。</p>
+  <%
+    }
+  %>
+  
   </body>
   </html>
+  
   ```
-
-  
-
-- 实现了一个会话检查的过滤器`AuthFilter`:
-
-  - 可以确保只有经过认证的用户才能访问受保护的资源。如果用户未登录，则会被重定向至登录页面。这样可以有效防止未授权访问，提高应用的安全性。
-
-  ```java
-  package com.itheima.test;
-  
-  import jakarta.servlet.*;
-  import jakarta.servlet.annotation.WebFilter;
-  import jakarta.servlet.http.HttpServletRequest;
-  import jakarta.servlet.http.HttpServletResponse;
-  import jakarta.servlet.http.HttpSession;
-  
-  import java.io.IOException;
-  
-  
-  @WebFilter("/*") // 拦截所有请求
-  public class AuthFilter implements Filter {
-      public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-              throws IOException, ServletException {
-          HttpServletRequest httpRequest = (HttpServletRequest) request;
-          HttpServletResponse httpResponse = (HttpServletResponse) response;
-  
-          HttpSession session = httpRequest.getSession(false);
-          String loginURI = httpRequest.getContextPath() + "/login.jsp"; // 登录页面的路径
-  
-          boolean loggedIn = (session != null && session.getAttribute("user") != null);
-          boolean loginRequest = httpRequest.getRequestURI().equals(loginURI);
-  
-          // 如果已登录或请求的是登录页面，则继续处理请求
-          if (loggedIn || loginRequest) {
-              chain.doFilter(request, response); // 继续请求
-          } else {
-              httpResponse.sendRedirect(loginURI); // 重定向到登录页面
-          }
-      }
-  
-      // 其他方法 (init和destroy) 可以根据需要实现
-  }
-  ```
-
-  
 
 - 处理登录请求
 
@@ -224,7 +287,6 @@
   
   import jakarta.servlet.ServletException;
   import jakarta.servlet.annotation.WebServlet;
-  import jakarta.servlet.http.Cookie;
   import jakarta.servlet.http.HttpServlet;
   import jakarta.servlet.http.HttpServletRequest;
   import jakarta.servlet.http.HttpServletResponse;
@@ -235,45 +297,34 @@
   @WebServlet("/login")
   public class LoginServlet extends HttpServlet {
       @Override
-      protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-          try {
-              System.out.println("doGet called");
-              request.getRequestDispatcher("/login.jsp").forward(request, response);
-          } catch (Exception e) {
-              e.printStackTrace(); // 打印异常信息
+      protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+          // 获取表单数据
+          String username = req.getParameter("username");
+          String password = req.getParameter("password");
+  
+          // 登录验证逻辑
+          if ("admin".equals(username) && "123456".equals(password)) {
+              // 登录成功，将用户信息存储在session中
+              HttpSession session = req.getSession();
+              session.setAttribute("user", username);
+  
+              resp.sendRedirect(req.getContextPath() + "/home.jsp");
+          } else {
+              // 登录失败，设置错误消息
+              req.setAttribute("errorMessage", "账户名或者密码错误，请重新检查登录");
+              // 转发回登录页面，显示错误消息
+              req.getRequestDispatcher("/login.jsp").forward(req, resp);
           }
       }
   
       @Override
-      protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-          System.out.println("doPost called");
-  
-          String username = request.getParameter("username");
-          String password = request.getParameter("password");
-  
-          if ("admin".equals(username) && "123456".equals(password)) {
-              HttpSession session = request.getSession(true);
-              session.setAttribute("user", username);
-  
-              if ("on".equals(request.getParameter("rememberMe"))) {
-                  Cookie cookie = new Cookie("userId", username);
-                  cookie.setMaxAge(7 * 24 * 60 * 60);
-                  cookie.setPath("/");
-                  cookie.setHttpOnly(true); // 增强安全性
-                  response.addCookie(cookie);
-              }
-  
-              response.sendRedirect("home.jsp");
-          } else {
-              request.setAttribute("error_msg", "用户名或密码错误");
-              request.getRequestDispatcher("/login.jsp").forward(request, response);
-          }
+      protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+          // 对于GET请求，转发到登录页面
+          request.getRequestDispatcher("/login.jsp").forward(request, response);
       }
   }
   ```
-
   
-
 - 处理登出请求
 
   创建一个 Servlet 来处理登录逻辑 `LogoutServlet.java`
@@ -289,49 +340,44 @@
   import jakarta.servlet.http.HttpSession;
   
   import java.io.IOException;
+  import java.util.logging.Level;
+  import java.util.logging.Logger;
   
   @WebServlet("/logout")
   public class LogoutServlet extends HttpServlet {
+      private static final Logger LOGGER = Logger.getLogger(LogoutServlet.class.getName());
+  
       @Override
-      protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+      protected void doGet(HttpServletRequest request, HttpServletResponse response)
+              throws ServletException, IOException {
           HttpSession session = request.getSession(false);
+  
           if (session != null) {
+              String username = (String) session.getAttribute("user");
               session.invalidate(); // 使会话失效
+              LOGGER.log(Level.INFO, "用户 {0} 已注销.", username); // 记录注销信息
           }
-          response.sendRedirect("login.jsp"); // 注销后重定向到登录页面
+  
+          // 增加一个重定向的退出消息
+          response.sendRedirect("login.jsp?logout=true");
+      }
+  
+      // 如果你需要处理 POST 请求，可以添加此方法
+      @Override
+      protected void doPost(HttpServletRequest request, HttpServletResponse response)
+              throws ServletException, IOException {
+          doGet(request, response);
       }
   }
   ```
   
-  - 配置`web.xml`使得`AuthFilter` 和 `LoginFilter` 不会自动产生冲突
+  - 结果展示
   
-    ```xml
-    <filter>
-        <filter-name>AuthFilter</filter-name>
-        <filter-class>com.demo.AuthFilter</filter-class>
-    </filter>
-    
-    <filter>
-        <filter-name>LoginFilter</filter-name>
-        <filter-class>com.demo.LoginFilter</filter-class>
-    </filter>
-    ```
+    ![](./Login%20sucess.png)
   
-    ```xml
-    <filter-mapping>
-        <filter-name>AuthFilter</filter-name>
-        <url-pattern>/*</url-pattern> <!-- 处理所有请求 -->
-    </filter-mapping>
-    
-    <filter-mapping>
-        <filter-name>LoginFilter</filter-name>
-        <url-pattern>/login</url-pattern> <!-- 仅处理登录请求 -->
-    </filter-mapping>
-    ```
+    ![](./Login%20in.png)
   
-    - **登录页面：**
-  
-      ![login](./login.png)
+    ![](./Login%20fail.png)
   
   ### **三**、问题与思考
   
