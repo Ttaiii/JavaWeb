@@ -5,9 +5,21 @@
 姓名：罗云平
 学号：2200770266
 班级：软工2202
-日期：2024-10-7
+日期：2024-10-15
 
 ### 一、**SQL查询语句**
+
+1. 建表&插入数据
+
+    [test.sql](test.sql)  
+
+   [emp.sql](emp.sql) 
+
+2. 查询语句
+
+    [demo_employee.sql](demo_employee.sql) 
+
+    [demo_student.sql](demo_student.sql) 
 
 ### 二、**问题与思考学习**
 
@@ -113,7 +125,20 @@
     ```
 
 - **9.**不能同时使用 `GROUP BY` 和窗口函数 `DENSE_RANK()`，因为窗口函数是在 `GROUP BY` 之后计算的.
-- 
 
-/*32*/ /*35*/  47 45 46
+- **10.**`DATE_ADD(date, INTERVAL value unit)`:
+
+  - `date`: 要进行加法运算的原始日期。
+  - `value`: 要增加的数量，可以是整数或浮点数。
+  - `unit`:: 时间单位，指示`value`的单位。常用的单位包括：
+    - `SECOND`: 秒
+    - `MINUTE`: 分钟
+    - `HOUR`: 小时
+    - `DAY`: 天
+    - `WEEK`: 星期
+    - `MONTH`: 月
+    - `QUARTER`: 季度
+    - `YEAR`: 年
+
+- **11.**`ROW_NUMBER()` 是一个窗口函数，用于为结果集中的每一行分配一个唯一的编号。该编号是基于某种排序规则，它在同一分区内是唯一的。在 MySQL 中，可以使用 `ROW_NUMBER()` 来实现许多传统的 SQL 查询或报表功能，例如获取分组的前 N 条记录。
 
